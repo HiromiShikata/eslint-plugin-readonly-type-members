@@ -1,31 +1,39 @@
+# DO NOT EDIT DIRECTLY.
+# This file is auto-synchronized from HiromiShikata/repositories-management.
+# Direct edits in downstream repositories will be overwritten by the next sync.
+# Update the source file in HiromiShikata/repositories-management instead.
+
 name: Lint Commit Messages
-on: push
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+
+concurrency:
+  group: commitlint-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   commit-lint:
     runs-on: ubuntu-latest
+    permissions:
+      issues: read
+      pull-requests: write
+      contents: read
     steps:
+      - uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Use Node.js
-        uses: actions/setup-node@v3
-
-      - name: Install commitlint
-        run: |
-          npm install --save-dev @commitlint/{config-conventional,cli}
-
-      - name: Lint commits
-        run: |
-          npx commitlint --from=HEAD~1 --to=HEAD --config ./.github/workflows/configs/commitlint.config.js
-
-  check-dontmerge:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/setup-node@v6
 
       - name: Check for DONTMERGE
         run: |
@@ -38,3 +46,20 @@ jobs:
             echo "$result"
             exit 1
           fi
+      - uses: nearform-actions/github-action-check-linked-issues@v1
+        id: check-linked-issues
+        if: false
+        with:
+          exclude-branches: 'release/**, dependabot/**, project-common/**'
+          loose-matching: true
+      - name: Install commitlint
+        run: |
+          mkdir -p /tmp/commitlint-run
+          cd /tmp/commitlint-run
+          npm init -y
+          npm install --no-audit --no-fund --save-dev @commitlint/cli @commitlint/config-conventional
+      - name: Lint commits
+        env:
+          NODE_PATH: /tmp/commitlint-run/node_modules
+        run: |
+          /tmp/commitlint-run/node_modules/.bin/commitlint --from=origin/main --to=HEAD --config $GITHUB_WORKSPACE/.github/workflows/configs/commitlint.config.js

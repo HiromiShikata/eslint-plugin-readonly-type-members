@@ -42,11 +42,6 @@ const getRepoRoot = () => {
   return output.trim();
 };
 
-// Copies the current on-disk content of every git-tracked file from
-// `repoRoot` into `destDir`, preserving relative paths and the executable
-// bit. Deliberately does NOT use `git archive <tree-ish>`: that reads only
-// a committed tree object, never the working tree, so it would miss any
-// uncommitted edit to a tracked file (see module docstring above).
 const exportTrackedWorkingTreeFiles = (repoRoot, destDir) => {
   const lsFilesOutput = execFileSync('git', ['ls-files', '-z'], {
     cwd: repoRoot,

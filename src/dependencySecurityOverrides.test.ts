@@ -85,6 +85,50 @@ const getHandlebarsOverrideRange = (packageJson: unknown): string => {
   return getStringProperty(overridesValue, 'handlebars');
 };
 
+const MINIMUM_UNDICI_VERSION_FOR_MAJOR_6_OR_LOWER = '6.29.1';
+const MINIMUM_UNDICI_VERSION_FOR_MAJOR_7 = '7.30.1';
+
+type UndiciLockEntry = {
+  key: string;
+  version: string;
+};
+
+const getUndiciLockEntries = (packageLockJson: unknown): UndiciLockEntry[] => {
+  if (!isRecord(packageLockJson)) {
+    throw new Error('package-lock.json root is not a JSON object');
+  }
+  const packagesValue = packageLockJson.packages;
+  if (!isRecord(packagesValue)) {
+    throw new Error('package-lock.json has no "packages" object');
+  }
+  return Object.keys(packagesValue)
+    .filter(
+      (key) =>
+        key === 'node_modules/undici' || key.endsWith('/node_modules/undici'),
+    )
+    .map((key) => {
+      const entryValue = packagesValue[key];
+      if (!isRecord(entryValue)) {
+        throw new Error(`undici lockfile entry "${key}" is not an object`);
+      }
+      return { key, version: getStringProperty(entryValue, 'version') };
+    });
+};
+
+const isUndiciVersionPatched = (version: string): boolean => {
+  const [major] = parseVersionComponents(version);
+  if (major >= 8) {
+    return true;
+  }
+  if (major === 7) {
+    return isVersionAtLeastMinimum(version, MINIMUM_UNDICI_VERSION_FOR_MAJOR_7);
+  }
+  return isVersionAtLeastMinimum(
+    version,
+    MINIMUM_UNDICI_VERSION_FOR_MAJOR_6_OR_LOWER,
+  );
+};
+
 describe('dependencySecurityOverrides handlebars GHSA-8r5x-fm3f-whwj GHSA-p8wg-vrv2-v86f', () => {
   const packageLockJson: unknown = JSON.parse(
     fs.readFileSync(path.join(__dirname, '..', 'package-lock.json'), 'utf8'),
@@ -115,4 +159,23 @@ describe('dependencySecurityOverrides handlebars GHSA-8r5x-fm3f-whwj GHSA-p8wg-v
       isVersionAtLeastMinimum(overrideVersion, MINIMUM_HANDLEBARS_VERSION),
     ).toBe(true);
   });
+});
+
+describe('dependencySecurityOverrides undici GHSA-2m5v-pch6-74hx GHSA-qrxm-fqhp-jwvm GHSA-4w7w-5xrc-9h26 GHSA-xjj6-f33q-929c', () => {
+  const packageLockJson: unknown = JSON.parse(
+    fs.readFileSync(path.join(__dirname, '..', 'package-lock.json'), 'utf8'),
+  );
+
+  const undiciLockEntries = getUndiciLockEntries(packageLockJson);
+
+  test('package-lock.json contains at least one undici entry', () => {
+    expect(undiciLockEntries.length).toBeGreaterThan(0);
+  });
+
+  it.each(undiciLockEntries)(
+    'resolved undici entry at $key ($version) is patched for high advisories',
+    ({ version }) => {
+      expect(isUndiciVersionPatched(version)).toBe(true);
+    },
+  );
 });

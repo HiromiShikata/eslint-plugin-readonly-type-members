@@ -179,3 +179,72 @@ describe('dependencySecurityOverrides undici GHSA-2m5v-pch6-74hx GHSA-qrxm-fqhp-
     },
   );
 });
+
+const MINIMUM_BRACE_EXPANSION_VERSION_BY_MAJOR: Record<number, string> = {
+  1: '1.1.20',
+  2: '2.1.6',
+  5: '5.0.11',
+};
+
+type BraceExpansionLockEntry = {
+  key: string;
+  version: string;
+};
+
+const getBraceExpansionLockEntries = (
+  packageLockJson: unknown,
+): BraceExpansionLockEntry[] => {
+  if (!isRecord(packageLockJson)) {
+    throw new Error('package-lock.json root is not a JSON object');
+  }
+  const packagesValue = packageLockJson.packages;
+  if (!isRecord(packagesValue)) {
+    throw new Error('package-lock.json has no "packages" object');
+  }
+  return Object.keys(packagesValue)
+    .filter(
+      (key) =>
+        key === 'node_modules/brace-expansion' ||
+        key.endsWith('/node_modules/brace-expansion'),
+    )
+    .map((key) => {
+      const entryValue = packagesValue[key];
+      if (!isRecord(entryValue)) {
+        throw new Error(
+          `brace-expansion lockfile entry "${key}" is not an object`,
+        );
+      }
+      return { key, version: getStringProperty(entryValue, 'version') };
+    });
+};
+
+const isBraceExpansionVersionPatched = (version: string): boolean => {
+  const [major] = parseVersionComponents(version);
+  const minimumVersion = MINIMUM_BRACE_EXPANSION_VERSION_BY_MAJOR[major];
+  if (minimumVersion === undefined) {
+    throw new Error(
+      `No minimum brace-expansion version is defined for major ${major} ("${version}")`,
+    );
+  }
+  return isVersionAtLeastMinimum(version, minimumVersion);
+};
+
+describe('dependencySecurityOverrides brace-expansion GHSA-6j4f-fj2g-mc7p GHSA-qhr7-859c-m2p7', () => {
+  const packageLockJson: unknown = JSON.parse(
+    fs.readFileSync(path.join(__dirname, '..', 'package-lock.json'), 'utf8'),
+  );
+
+  const braceExpansionLockEntries =
+    getBraceExpansionLockEntries(packageLockJson);
+
+  test('package-lock.json contains at least one brace-expansion entry', () => {
+    expect(braceExpansionLockEntries.length).toBeGreaterThan(0);
+  });
+
+  it.each(braceExpansionLockEntries)(
+    'resolved brace-expansion entry at $key ($version) is patched for high advisories',
+    ({ version }) => {
+      expect(isBraceExpansionVersionPatched(version)).toBe(true);
+    },
+  );
+});

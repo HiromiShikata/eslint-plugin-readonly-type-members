@@ -37,23 +37,26 @@
     "handlebars": "^4.7.10",
     "@jest/reporters": {
       "glob": {
+        ".": "^14.0.6",
         "minimatch": "11.0.1"
       }
     },
     "jest-config": {
       "glob": {
+        ".": "^14.0.6",
         "minimatch": "11.0.1"
       }
     },
     "jest-runtime": {
       "glob": {
+        ".": "^14.0.6",
         "minimatch": "11.0.1"
       }
     },
     "test-exclude": {
       "minimatch": "11.0.1",
       "glob": {
-        ".": "13.0.6",
+        ".": "^14.0.6",
         "minimatch": "11.0.1"
       }
     }
